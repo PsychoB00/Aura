@@ -1,5 +1,10 @@
 const std = @import("std");
+const heap = std.heap;
+
+const MainFrame = @import("MainFrame.zig").MainFrame;
 
 pub fn main() !void {
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var mf = MainFrame.init(heap.page_allocator);
+
+    mf.run();
 }

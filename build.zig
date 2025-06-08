@@ -4,6 +4,12 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const zap = b.dependency("zap", .{
+        .target = target,
+        .optimize = optimize,
+        .openssl = false,
+    });
+
     const mf_exe_mod = b.createModule(.{
         .root_source_file = b.path("src/MainFrame/main.zig"),
         .target = target,
@@ -14,6 +20,7 @@ pub fn build(b: *std.Build) void {
         .name = "MainFrame",
         .root_module = mf_exe_mod,
     });
+    mf_exe.root_module.addImport("zap", zap.module("zap"));
     b.installArtifact(mf_exe);
 
     const run_cmd = b.addRunArtifact(mf_exe);
