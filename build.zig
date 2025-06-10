@@ -10,17 +10,25 @@ pub fn build(b: *std.Build) void {
         .openssl = false,
     });
 
+    const core_mod = b.createModule(.{
+        .root_source_file = b.path("src/Core/core.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    core_mod.addImport("zap", zap.module("zap"));
+
     const mf_exe_mod = b.createModule(.{
         .root_source_file = b.path("src/MainFrame/main.zig"),
         .target = target,
         .optimize = optimize,
     });
+    mf_exe_mod.addImport("core", core_mod);
+    mf_exe_mod.addImport("zap", zap.module("zap"));
 
     const mf_exe = b.addExecutable(.{
         .name = "MainFrame",
         .root_module = mf_exe_mod,
     });
-    mf_exe.root_module.addImport("zap", zap.module("zap"));
     b.installArtifact(mf_exe);
 
     const run_cmd = b.addRunArtifact(mf_exe);
