@@ -7,47 +7,30 @@ const Allocator = std.mem.Allocator;
 
 /// Aura
 const core = @import("core");
+const EndpointSet = @import("EndpointSet.zig").EndpointSet;
 
 /// Third Party
 const zap = @import("zap");
 const Authenticator = zap.Auth.BearerSingle;
 
+/// Main server of Aura eco-system
 pub const MainFrame = struct {
-    const Context = struct {
+    pub const Context = struct {
         bearer_token: []const u8,
-    };
-    const App = zap.App.Create(Context);
-    const EndpointSet = struct {
-        const StopEndpoint = struct {
-            path: []const u8,
-            error_strategy: zap.Endpoint.ErrorStrategy = .log_to_response,
 
-            pub fn init(path: []const u8) StopEndpoint {
-                return .{
-                    .path = path,
-                };
+        pub fn unhandledRequest(_: *Context, _: Allocator, r: zap.Request) anyerror!void {
+            if (r.path) |path| {
+                if (path.len == 1) {
+                    // redirect to login
+                    try r.redirectTo("/login", null);
+                    return;
+                }
             }
-
-            pub fn get(_: *StopEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {
-                zap.stop();
-            }
-
-            pub fn post(_: *StopEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
-            pub fn put(_: *StopEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
-            pub fn delete(_: *StopEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
-            pub fn patch(_: *StopEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
-            pub fn options(_: *StopEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
-            pub fn head(_: *StopEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
-        };
-
-        stop: StopEndpoint,
-
-        pub fn init() EndpointSet {
-            return .{
-                .stop = StopEndpoint.init("/stop"),
-            };
+            r.setStatus(.not_found);
         }
     };
+
+    const App = zap.App.Create(Context);
 
     allocator: Allocator,
 
