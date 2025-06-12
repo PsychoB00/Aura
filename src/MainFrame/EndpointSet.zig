@@ -1,9 +1,11 @@
 /// STD
 const std = @import("std");
 const log = std.log;
+const mem = std.mem;
 const Allocator = std.mem.Allocator;
 
 /// Aura
+const core = @import("core");
 const Context = @import("MainFrame.zig").MainFrame.Context;
 const login_page = @embedFile("pages/login.html");
 
@@ -23,10 +25,29 @@ pub const EndpointSet = struct {
         }
 
         pub fn get(_: *LoginEndpoint, _: Allocator, _: *Context, r: zap.Request) !void {
-            try r.sendBody(login_page);
+            if (r.path) |path| {
+                if (mem.eql(u8, path, "/login")) {
+                    // Login page
+                    try r.sendBody(login_page);
+                    r.setStatus(.ok);
+                } else if (mem.eql(u8, path, "/login/aura_dome.svg")) {
+                    // Aura dome image
+                    try r.sendBody(core.dome);
+                    r.setStatus(.ok);
+                } else r.setStatus(.not_found);
+            } else r.setStatus(.not_found);
         }
 
-        pub fn post(_: *LoginEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
+        pub fn post(_: *LoginEndpoint, _: Allocator, context: *Context, r: zap.Request) !void {
+            if (r.path) |path| {
+                if (mem.eql(u8, path, "/login/confirm")) {
+                    // Confirmation of correct login informations
+                    if (context.users_authenticator.authenticateRequest(&r) == .AuthOK) {
+                        try r.redirectTo("/dash", null);
+                    } else r.setStatus(.internal_server_error);
+                } else r.setStatus(.not_found);
+            } else r.setStatus(.not_found);
+        }
         pub fn put(_: *LoginEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
         pub fn delete(_: *LoginEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}
         pub fn patch(_: *LoginEndpoint, _: Allocator, _: *Context, _: zap.Request) !void {}

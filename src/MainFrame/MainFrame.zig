@@ -11,13 +11,31 @@ const EndpointSet = @import("EndpointSet.zig").EndpointSet;
 
 /// Third Party
 const zap = @import("zap");
-const Authenticator = zap.Auth.BearerSingle;
+const UsersAuthenticator = zap.Auth.Basic(std.StringHashMap([]const u8), .UserPass);
 
 /// Main server of Aura eco-system
 pub const MainFrame = struct {
     pub const Context = struct {
-        bearer_token: []const u8,
+        users: *std.StringHashMap([]const u8),
+        users_authenticator: UsersAuthenticator,
 
+        /// Initialize Context
+        ///
+        /// MUST CALL `deinit` to deinitialize
+        fn init(a: Allocator) !Context {
+            const users = try a.create(std.StringHashMap([]const u8));
+            users.* = std.StringHashMap([]const u8).init(a);
+            // Mock users
+            try users.put("mr_admin", "VeryUnsafe");
+            try users.put("joe", "SomeGuy123");
+
+            return .{
+                .users = users,
+                .users_authenticator = try UsersAuthenticator.init(a, users, null),
+            };
+        }
+
+        /// Any unhandeled request will end up here
         pub fn unhandledRequest(_: *Context, _: Allocator, r: zap.Request) anyerror!void {
             if (r.path) |path| {
                 if (path.len == 1) {
@@ -27,6 +45,13 @@ pub const MainFrame = struct {
                 }
             }
             r.setStatus(.not_found);
+        }
+
+        /// Deinitialize Context
+        fn deinit(self: *Context, a: Allocator) void {
+            self.users_authenticator.deinit();
+            self.users.deinit();
+            a.destroy(self.users);
         }
     };
 
@@ -45,9 +70,7 @@ pub const MainFrame = struct {
         self.allocator = gpa.allocator();
 
         // Context
-        self.context = .{
-            .bearer_token = "ABCDEFG",
-        };
+        self.context = try Context.init(self.allocator);
 
         // Application
         self.app = try App.init(
@@ -81,5 +104,6 @@ pub const MainFrame = struct {
     /// Deinitialize MainFrame
     pub fn deinit(self: *MainFrame) void {
         self.app.deinit();
+        self.context.deinit(self.allocator);
     }
 };
