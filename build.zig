@@ -7,7 +7,11 @@ pub fn build(b: *std.Build) void {
     const zap = b.dependency("zap", .{
         .target = target,
         .optimize = optimize,
-        .openssl = false,
+        .openssl = true,
+    });
+    const jwt = b.dependency("jwt", .{
+        .target = target,
+        .optimize = optimize,
     });
 
     const core_mod = b.createModule(.{
@@ -16,6 +20,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     core_mod.addImport("zap", zap.module("zap"));
+    core_mod.addImport("jwt", jwt.module("jwt"));
 
     const mf_exe_mod = b.createModule(.{
         .root_source_file = b.path("src/MainFrame/main.zig"),
@@ -24,6 +29,7 @@ pub fn build(b: *std.Build) void {
     });
     mf_exe_mod.addImport("core", core_mod);
     mf_exe_mod.addImport("zap", zap.module("zap"));
+    mf_exe_mod.addImport("jwt", jwt.module("jwt"));
 
     const mf_exe = b.addExecutable(.{
         .name = "MainFrame",

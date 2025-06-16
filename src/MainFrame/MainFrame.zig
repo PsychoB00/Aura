@@ -7,33 +7,19 @@ const Allocator = std.mem.Allocator;
 
 /// Aura
 const core = @import("core");
-const EndpointSet = @import("EndpointSet.zig").EndpointSet;
+const LoginEndpoint = @import("Login.zig").LoginEndpoint;
+const DashboardEndpoint = @import("Dashboard.zig").DashboardEndpoint;
 
 /// Third Party
 const zap = @import("zap");
-const UsersAuthenticator = zap.Auth.Basic(std.StringHashMap([]const u8), .UserPass);
 
 /// Main server of Aura eco-system
 pub const MainFrame = struct {
     pub const Context = struct {
-        users: *std.StringHashMap([]const u8),
-        users_authenticator: UsersAuthenticator,
+        jwt_key: []const u8,
+        jwt_exp: i64,
 
-        /// Initialize Context
-        ///
-        /// MUST CALL `deinit` to deinitialize
-        fn init(a: Allocator) !Context {
-            const users = try a.create(std.StringHashMap([]const u8));
-            users.* = std.StringHashMap([]const u8).init(a);
-            // Mock users
-            try users.put("mr_admin", "VeryUnsafe");
-            try users.put("joe", "SomeGuy123");
-
-            return .{
-                .users = users,
-                .users_authenticator = try UsersAuthenticator.init(a, users, null),
-            };
-        }
+        users: std.StringHashMap([]const u8),
 
         /// Any unhandeled request will end up here
         pub fn unhandledRequest(_: *Context, _: Allocator, r: zap.Request) anyerror!void {
@@ -46,13 +32,6 @@ pub const MainFrame = struct {
             }
             r.setStatus(.not_found);
         }
-
-        /// Deinitialize Context
-        fn deinit(self: *Context, a: Allocator) void {
-            self.users_authenticator.deinit();
-            self.users.deinit();
-            a.destroy(self.users);
-        }
     };
 
     const App = zap.App.Create(Context);
@@ -61,7 +40,10 @@ pub const MainFrame = struct {
 
     context: Context,
     app: App,
-    endpoint_set: EndpointSet,
+    jwt_authenticator: core.JWTAuthenticator,
+
+    login_ep: LoginEndpoint,
+    dashboard_ep: core.JWTAuthEndpoint(DashboardEndpoint, App),
 
     /// Initialize MainFrame
     ///
@@ -70,7 +52,13 @@ pub const MainFrame = struct {
         self.allocator = gpa.allocator();
 
         // Context
-        self.context = try Context.init(self.allocator);
+        self.context = .{
+            .jwt_key = "19TEMP28KEY73",
+            .jwt_exp = 3600,
+            .users = std.StringHashMap([]const u8).init(self.allocator),
+        };
+        try self.context.users.put("mr_admin", "VeryUnsafe");
+        try self.context.users.put("joe", "average_dude");
 
         // Application
         self.app = try App.init(
@@ -79,18 +67,22 @@ pub const MainFrame = struct {
             .{},
         );
 
-        // Routing
-        self.endpoint_set = EndpointSet.init();
+        // JWT Authenticator
+        self.jwt_authenticator = try core.JWTAuthenticator.init(self.allocator, self.context.jwt_key, null);
 
         // Register endpoints
-        try core.Endpoint.registerEndpointSet(App, &self.app, EndpointSet, &self.endpoint_set);
+        self.login_ep.init("/login");
+        try self.app.register(&self.login_ep);
+
+        self.dashboard_ep.init("/dashboard", &self.jwt_authenticator);
+        try self.app.register(&self.dashboard_ep.auth_ep);
     }
 
     /// Listens and starts `zap` Application
     pub fn run(self: *MainFrame) !void {
         // Listen
         try self.app.listen(.{
-            .interface = "0.0.0.0",
+            .interface = "127.0.0.1",
             .port = 3000,
         });
 
@@ -103,7 +95,8 @@ pub const MainFrame = struct {
 
     /// Deinitialize MainFrame
     pub fn deinit(self: *MainFrame) void {
+        self.jwt_authenticator.deinit();
         self.app.deinit();
-        self.context.deinit(self.allocator);
+        self.context.users.deinit();
     }
 };

@@ -1,3 +1,5 @@
 pub const dome = @embedFile("resources/aura_dome.svg");
 
-pub const Endpoint = @import("Endpoint.zig").Endpoint;
+pub const JWTPayload = @import("JWT.zig").JWTPayload;
+pub const JWTAuthenticator = @import("JWT.zig").JWTAuthenticator;
+pub const JWTAuthEndpoint = @import("JWT.zig").JWTAuthEndpoint;
